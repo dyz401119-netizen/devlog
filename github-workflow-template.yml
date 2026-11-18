@@ -1,0 +1,84 @@
+# ⚠️ 这是 GitHub Actions 工作流模板
+#
+# 这个文件不能通过 API 直接上传到 .github/workflows/（需要 token 的 workflow 权限）。
+#
+# 启用方法（二选一）：
+#   1. 网页操作：打开 https://github.com/dyz401119-netizen/devlog
+#      点 Add file → Create new file → 输入 .github/workflows/deploy.yml
+#      把下面的内容粘贴进去 → Commit
+#   2. 重新生成一个有 workflow 权限的 token，或用 git push 推送
+#
+# 内容如下：
+# ---------------------------------------------------------------------------
+name: deploy-blog
+
+# 推送到 main 分支时自动部署到 ECS
+# 也能在 GitHub 页面手动触发（workflow_dispatch）
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'nginx/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+# 同一时间只跑一个部署，避免并发把站点搞乱
+concurrency:
+  group: deploy-blog
+  cancel-in-progress: false
+
+jobs:
+  # ---------- 第一步：在 GitHub 上先验证一遍，配置错就别往服务器送了 ----------
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: '0.128.0'
+          extended: true
+
+      - name: 拉取主题
+        run: git clone --depth=1 https://github.com/adityatelange/hugo-PaperMod.git site/themes/PaperMod
+
+      - name: 构建检查（失败则中止，不部署）
+        run: |
+          cd site
+          hugo build --gc --minify --baseURL "https://example.com/"
+          echo "构建成功，产物统计："
+          du -sh public
+          find public -name '*.html' | wc -l
+
+  # ---------- 第二步：SSH 到 ECS 执行部署 ----------
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: 远程部署
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USER }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          port: ${{ secrets.ECS_PORT }}
+          script_stop: true
+          command_timeout: 10m
+          script: |
+            set -e
+            cd ${{ secrets.ECS_PROJECT_DIR }}
+            echo "==> 拉取最新代码"
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "==> 构建并发布"
+            bash deploy.sh
+
+            echo "==> 清理旧镜像，释放磁盘"
+            docker image prune -f
+
+            echo "==> 部署完成"
+            docker compose ps
