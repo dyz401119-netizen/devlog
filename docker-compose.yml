@@ -1,0 +1,69 @@
+name: blog
+
+# ---------------------------------------------------------------------------
+# 个人博客：Hugo 静态站点 + Nginx
+#
+# 【当前部署模式：HTTP-ONLY（无域名、无证书）】
+#   故意不启动 certbot，Nginx 只监听 80 端口，通过 http://服务器IP 访问。
+#   等域名备案通过后，切换到 HTTPS 模式即可（见 README「切换到 HTTPS」）。
+#
+# 设计要点：
+#   1. 构建和运行分离：builder 是一次性构建容器，跑完即退出，不常驻内存。
+#   2. 只有 Nginx 暴露端口到宿主机。
+#   3. 容器日志限制大小，防止日志写满磁盘。
+#   4. 站点内容（Markdown）和构建产物都在宿主机上，容器随时可删，数据不会丢。
+# ---------------------------------------------------------------------------
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ---------- 构建静态站点（一次性任务） ----------
+  # 用法：docker compose --profile build run --rm builder
+  #
+  # 产物路径：宿主机 ./site 挂载到容器 /src，产物写入 /src/public，
+  # 即宿主机 ./site/public。Nginx 挂载的正是这个目录。
+  builder:
+    image: hugomods/hugo:exts-0.128.0
+    profiles: ["build"]
+    working_dir: /src
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      HUGO_ENV: production
+      HUGO_ENVIRONMENT: production
+    volumes:
+      - ./site:/src
+    command: >
+      build
+      --destination /src/public
+      --gc
+      --minify
+      --baseURL ${SITE_URL}
+      --cleanDestinationDir
+    logging: *default-logging
+
+  # ---------- 静态文件服务器 / 反向代理 ----------
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: blog-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      # 自定义主配置（内含 worker_connections / 日志缓冲 / open_file_cache 等优化）
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # HTTP-only 模式使用 site-http.conf；切 HTTPS 时换成 site.conf
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
+      - ./site/public:/usr/share/nginx/html:ro
+      - ./data/nginx-logs:/var/log/nginx
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging: *default-logging
