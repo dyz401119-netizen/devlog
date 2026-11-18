@@ -1,0 +1,14 @@
+# 站点级翻译覆盖
+#
+# Hugo 会优先使用站点根目录的 i18n/，再回落到主题的 i18n/。
+# 主题的 zh.yaml 缺少 tags / categories 条目，导致页面上显示英文 "Tags"。
+# 这里补上，覆盖主题的默认行为。
+
+- id: tags
+  translation: "标签"
+
+- id: categories
+  translation: "分类"
+
+- id: taxonomies
+  translation: "分类"
