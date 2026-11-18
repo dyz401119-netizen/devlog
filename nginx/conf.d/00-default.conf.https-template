@@ -1,0 +1,39 @@
+# ---------------------------------------------------------------------------
+# Nginx 主配置片段之一：兜底 server
+# - 80 端口：只放行 ACME 证书校验路径，其余全部 301 跳 HTTPS
+# - 443 端口：默认拒绝（防止用 IP 或未配置域名直接访问）
+# 站点真正的 server 块在同目录的 site.conf
+# ---------------------------------------------------------------------------
+
+# 健康检查用（给 docker healthcheck 调用），不对外暴露敏感信息
+server {
+    listen 80;
+    server_name _;
+
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 "ok\n";
+    }
+
+    # Let's Encrypt HTTP-01 校验必须走 80 明文
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name _;
+
+    # 用占位自签证书，避免未配置域名时 Nginx 启动失败
+    ssl_certificate     /etc/nginx/certs/placeholder.crt;
+    ssl_certificate_key /etc/nginx/certs/placeholder.key;
+
+    return 444;
+}
