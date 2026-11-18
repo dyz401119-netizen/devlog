@@ -205,3 +205,39 @@
         height: auto;
     }
 }
+
+/* ---------------------------------------------------------------------------
+ * 首页文章卡片：标签
+ * ------------------------------------------------------------------------- */
+.home-entry-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin: 0.2rem 0 0.6rem;
+}
+
+.home-tag {
+    font-size: 0.78rem;
+    /* 用内容色而不是次要色，保证浅色主题下也清晰可读 */
+    color: var(--content);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.1rem 0.5rem;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+
+/* 深色主题下提高对比度 */
+[data-theme="dark"] .home-tag {
+    color: var(--primary);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+@media screen and (max-width: 768px) {
+    .home-tag {
+        font-size: 0.74rem;
+        padding: 0.1rem 0.42rem;
+    }
+}
