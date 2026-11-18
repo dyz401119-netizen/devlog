@@ -1,0 +1,12 @@
+# 静态资源目录
+#
+# 这里的文件会原样复制到站点根目录：
+#   site/static/images/a.png  ->  https://你的域名/images/a.png
+#
+# 常用子目录：
+#   images/   文章配图
+#   css/      自定义样式（覆盖主题时用）
+#   files/    附件（PDF、压缩包等）
+#
+# 本文件本身不会被发布（Hugo 会跳过 .gitkeep 这类空标记文件），
+# 可以安全删除。
