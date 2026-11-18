@@ -48,6 +48,23 @@ timeZone = "Asia/Shanghai"
   author = "dyz"
 
   # ---------------------------------------------------------------------------
+  # SEO / 社交分享
+  # ---------------------------------------------------------------------------
+  # 社交分享时的默认预览图（og:image）
+  # 生成的 512x512 图标，虽然不是标准 1200x630 横幅，但聊胜于无
+  images = ["/android-chrome-512x512.png"]
+  # Open Graph 站点信息
+  [params.opengraph]
+    # 文章页是否附带 tags 作为 article:tag
+    showTags = true
+    # 文章页是否附带发布时间
+    showPublishDate = true
+
+  # 站点图标（theme 会自动读取这些路径，放在 static/ 根目录即可）
+  # 实际文件已生成：favicon.ico / favicon-16x16.png / favicon-32x32.png
+  #                apple-touch-icon.png / android-chrome-*.png / site.webmanifest
+
+  # ---------------------------------------------------------------------------
   # 首页布局：profileMode（头像式个人主页）
   #
   # 比默认的 homeInfoParams 更适合博客首页：
