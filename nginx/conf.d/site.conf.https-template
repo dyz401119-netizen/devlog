@@ -1,0 +1,126 @@
+# ---------------------------------------------------------------------------
+# 博客站点 server 块
+#
+# 【需要你改的地方】
+#   __DOMAIN__  —— 替换成你的真实域名（安装脚本 install.sh 会自动替换）
+#
+# 证书说明：
+#   正式证书由 certbot 申请后放在 ./certs/fullchain.pem 和 privkey.pem。
+#   首次部署、证书还没下来之前，Nginx 会启动失败。
+#   解决办法：先跑 install.sh skill 里的"第一阶段"（只用占位证书启动），
+#   申请到证书后再执行：docker compose restart nginx
+# ---------------------------------------------------------------------------
+
+# HTTP -> HTTPS 跳转
+server {
+    listen 80;
+    server_name __DOMAIN__ www.__DOMAIN__;
+
+    # 证书校验通道必须保留
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name __DOMAIN__ www.__DOMAIN__;
+
+    # --- 证书 ---
+    ssl_certificate     /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/privkey.pem;
+
+    # --- TLS 加固：只允许 TLS 1.2/1.3 ---
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    # OCSP 装订（可选，证书链完整时自动生效）
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    resolver 223.5.5.5 119.29.29.29 valid=300s;
+    resolver_timeout 5s;
+
+    # www 统一跳到主域名（SEO 友好，避免重复内容）
+    if ($host = www.__DOMAIN__) {
+        return 301 https://__DOMAIN__$request_uri;
+    }
+
+    # --- 安全响应头 ---
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+
+    # --- 文档根目录 ---
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # 压缩
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_comp_level 5;
+    gzip_types
+        text/plain text/css text/xml text/javascript
+        application/javascript application/json application/xml
+        application/rss+xml application/atom+xml
+        image/svg+xml font/woff font/woff2;
+
+    # ---- 安全：禁止访问隐藏文件和源码配置 ----
+    location ~ /\.(?!well-known) {
+        deny all;
+        access_log off;
+    }
+    location ~* \.(toml|yaml|yml|md|lock)$ {
+        deny all;
+    }
+
+    # ---- 健康检查 ----
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 "ok\n";
+    }
+
+    # ---- 静态资源：长缓存 ----
+    # 文件名带 hash 的资源（Hugo 的 resources 或主题生成的）可以放心长缓存
+    location ~* \.(?:css|js|woff2?|ttf|eot|otf|svg|png|jpe?g|gif|webp|avif|ico)$ {
+        expires 30d;
+        add_header Cache-Control "public, max-age=2592000, immutable";
+        access_log off;
+        try_files $uri =404;
+    }
+
+    # ---- HTML：短缓存，保证文章更新后能马上看到 ----
+    location ~* \.html$ {
+        expires 5m;
+        add_header Cache-Control "public, max-age=300, must-revalidate";
+        try_files $uri $uri/ =404;
+    }
+
+    # ---- 主路由 ----
+    location / {
+        # 静态站只需要 try_files，不需要 proxy_pass
+        try_files $uri $uri/ $uri/index.html =404;
+    }
+
+    # ---- 文章永久链接（Hugo 默认生成 /posts/xxx/ 目录形式） ----
+    error_page 404 /404.html;
+    location = /404.html {
+        internal;
+    }
+
+    # 访问日志保留，方便排查
+    access_log /var/log/nginx/access.log;
+    error_log  /var/log/nginx/error.log warn;
+}
