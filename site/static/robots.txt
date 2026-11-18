@@ -1,0 +1,13 @@
+# robots.txt —— 搜索引擎爬虫指引
+#
+# 允许全部抓取，指向 sitemap
+
+User-agent: *
+Allow: /
+
+# 不希望被索引的路径（Waline 后台、API 等，如果以后启用）
+Disallow: /comment/
+Disallow: /search/
+
+# 站点地图
+Sitemap: http://47.238.215.116/sitemap.xml
