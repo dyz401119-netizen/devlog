@@ -1,0 +1,39 @@
+{{- /*
+  自定义 taxonomy 列表页模板（覆盖主题）
+
+  为什么要覆盖：
+    Hugo 为 taxonomy 列表页生成的 .Title 取自分类清单名本身（tags / categories），
+    主题模板直接输出 {{ .Title }}，于是页面上显示英文 "Tags" / "Categories"。
+    titleCaseStyle 之类的配置改不了这一点，必须在模板里把名称映射成中文。
+
+  想改显示文案？只改 $labels 里的值即可。
+*/ -}}
+
+{{- define "main" }}
+{{- $labels := dict "tags" "标签" "categories" "分类" "series" "系列" -}}
+{{- $title := .Title -}}
+{{- with index $labels .Data.Plural -}}
+  {{- $title = . -}}
+{{- end -}}
+
+<header class="page-header">
+    <h1>{{ $title }}</h1>
+    {{- with .Description }}
+    <div class="post-description">{{ . }}</div>
+    {{- end }}
+</header>
+
+<ul class="terms-tags">
+    {{- $type := .Type }}
+    {{- range $key, $value := .Data.Terms.Alphabetical }}
+    {{- $name := .Name }}
+    {{- $count := .Count }}
+    {{- with site.GetPage (printf "/%s/%s" $type $name) }}
+    <li>
+        <a href="{{ .Permalink }}">{{ .LinkTitle }} <sup><strong><sup>{{ $count }}</sup></strong></sup> </a>
+    </li>
+    {{- end }}
+    {{- end }}
+</ul>
+
+{{- end }}{{- /* end main */ -}}
