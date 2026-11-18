@@ -1,0 +1,67 @@
+{{- /*
+  自定义首页模板
+
+  为什么要覆盖主题的 list.html：
+    主题在 profileMode.enabled = true 时会“提前返回”，只渲染 profile 卡片，
+    完全不输出文章列表。对个人博客来说，首页既要展示身份，也要让访客看到文章。
+
+  本模板 = profile 头像卡片 + 下方文章列表，兼得两者。
+  文章列表部分沿用主题原有结构，确保样式一致。
+*/ -}}
+
+{{- define "main" }}
+
+{{- /* ---------- 1. 顶部个人卡片 ---------- */ -}}
+{{- partial "index_profile.html" . }}
+
+{{- /* ---------- 2. 文章列表 ---------- */ -}}
+{{- $pages := where site.RegularPages "Type" "in" site.Params.mainSections }}
+{{- $pages = where $pages "Params.hiddenInHomeList" "!=" "true" }}
+{{- $paginator := .Paginate $pages }}
+
+{{- if $pages }}
+<div class="home-posts">
+  <div class="home-posts-head">
+    <h2>最新文章</h2>
+    <a class="home-posts-all" href="{{ "/posts/" | relURL }}">查看全部 →</a>
+  </div>
+
+  {{- range $index, $page := $paginator.Pages }}
+  <article class="post-entry">
+    <header class="entry-header">
+      <h2 class="entry-hint-parent">{{ .Title }}</h2>
+    </header>
+    {{- if (ne (.Param "hideSummary") true) }}
+    <div class="entry-content">
+      <p>{{ .Summary | plainify | htmlUnescape }}{{ if .Truncated }}...{{ end }}</p>
+    </div>
+    {{- end }}
+    {{- if not (.Param "hideMeta") }}
+    <footer class="entry-footer">
+      {{- partial "post_meta.html" . -}}
+    </footer>
+    {{- end }}
+    <a class="entry-link" aria-label="post link to {{ .Title | plainify }}" href="{{ .Permalink }}"></a>
+  </article>
+  {{- end }}
+
+  {{- if gt $paginator.TotalPages 1 }}
+  <footer class="page-footer">
+    <nav class="pagination">
+      {{- if $paginator.HasPrev }}
+      <a class="prev" href="{{ $paginator.Prev.URL | absURL }}">&nbsp;{{ i18n "prev_page" }}&nbsp;</a>
+      {{- end }}
+      {{- if $paginator.HasNext }}
+      <a class="next" href="{{ $paginator.Next.URL | absURL }}">{{ i18n "next_page" }}&nbsp;</a>
+      {{- end }}
+    </nav>
+  </footer>
+  {{- end }}
+</div>
+{{- else }}
+<div class="home-posts">
+  <p style="text-align:center;color:#8f857d;">还没有文章，敬请期待。</p>
+</div>
+{{- end }}
+
+{{- end }}{{- /* end main */ -}}
