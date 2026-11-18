@@ -1,0 +1,165 @@
+# ---------------------------------------------------------------------------
+# Hugo 站点配置
+# 官方文档：https://gohugo.io/getting-started/configuration/
+#
+# 换主题/改标题：主要改 title、description、params 里的几项即可
+# ---------------------------------------------------------------------------
+
+baseURL = "https://blog.example.com/"   # 会被构建命令的 --baseURL 覆盖，这里保留默认
+# locale 取代了旧版 languageCode（Hugo 0.158+ 开始弃用 languageCode）
+locale = "zh-CN"
+defaultContentLanguage = "zh"
+title = "DevLog"
+theme = "PaperMod"
+
+# ---------------------------------------------------------------------------
+# 关闭 Hugo 对自动生成标题的首字母大写改写
+#
+# Hugo 默认会把 taxonomies 的名称转成首字母大写，于是 /tags/ 页面的标题
+# 显示成 "Tags"、/categories/ 显示成 "Categories"。
+# 中文站不需要这种处理，设为 never 后使用原始名称。
+# ---------------------------------------------------------------------------
+titleCaseStyle = "never"
+
+# 生成带目录的永久链接：/posts/hello-world/
+# 这种形式对静态托管最友好，不需要额外的 rewrite
+[pagination]
+  pagerSize = 10
+
+# 时区
+timeZone = "Asia/Shanghai"
+
+# 开启 emoji 与语法高亮
+[markup]
+  [markup.goldmark.renderer]
+    # 允许在 Markdown 里直接写 HTML（写博客加卡片、视频时有用）
+    unsafe = true
+  [markup.highlight]
+    noClasses = false
+    lineNos = true
+    lineNumbersInTable = true
+  [markup.tableOfContents]
+    startLevel = 2
+    endLevel = 3
+
+[params]
+  # 站点基础信息
+  description = "记录技术、性能与工程实践"
+  author = "dyz"
+
+  # ---------------------------------------------------------------------------
+  # 首页布局：profileMode（头像式个人主页）
+  #
+  # 比默认的 homeInfoParams 更适合博客首页：
+  #   - 有明确的身份信息（头像 + 标题 + 副标题）
+  #   - 可放按钮（进入文章 / 关于我）
+  #   - 视觉重心集中，不空旷
+  #
+  # 想换回头像下方直接显示文章列表？把 enabled 改回 false 即可。
+  # ---------------------------------------------------------------------------
+  [params.profileMode]
+    enabled = true
+    title = "DevLog"
+    subtitle = "记录技术、性能与工程实践"
+    # 头像：把图片放到 site/static/images/avatar.png 后取消下面注释
+    # imageUrl = "images/avatar.png"
+    # imageWidth = 150
+    # imageHeight = 150
+    imageTitle = "头像"
+    [[params.profileMode.buttons]]
+      name = "阅读文章"
+      url = "/posts/"
+    [[params.profileMode.buttons]]
+      name = "关于我"
+      url = "/about/"
+
+  # 默认主题模式：auto / light / dark
+  defaultTheme = "auto"
+  # 是否显示阅读时间
+  ShowReadingTime = true
+  ShowShareButtons = false
+  ShowPostNavLinks = true
+  ShowBreadCrumbs = true
+  ShowCodeCopyButtons = true
+  ShowWordCount = true
+  ShowRssButtonInSectionTermList = true
+  # 文章目录
+  ShowToc = true
+  TocOpen = false
+  # ---------------------------------------------------------------------------
+  # 首页文章摘要长度上限（字符）
+  #
+  # PaperMod 默认把文章全部开头的 Markdown 都渲染成摘要，遇到表格/代码块会挤成
+  # 一大坨。这里限制长度，保证首页卡片清爽。
+  # ---------------------------------------------------------------------------
+  summaryLength = 120
+  # 站内搜索（基于 index.json，纯前端实现，无需后端）
+  [params.search]
+    enable = true
+    type = "fuse"
+
+  # 页脚
+  [params.footer]
+    text = ""
+
+  # 社交链接（填好后显示在页头/页脚）
+  [params.socialIcons]
+    # [[params.socialIcons]]
+    #   name = "github"
+    #   url = "https://github.com/yourname"
+    # [[params.socialIcons]]
+    #   name = "rss"
+    #   url = "index.xml"
+
+  # 国内访问友好：不加载 Google 字体、不用 Google Analytics
+  # 主题 PaperMod 自带这些开关
+  [params.assets]
+    disableFingerprinting = false
+
+# 顶部导航
+#
+# 移动端导航栏空间有限：实测 390px 宽度下 6 项刚好放得下，
+# 再多会被挤出屏幕（已用 site/assets/css/extended/custom.css 做换行兜底）。
+# 因此保持 6 项：首页 / 文章 / 归档 / 标签 / 关于 / 留言板
+# （搜索页仍然存在，访问 /search/，只是不占导航位）
+[[menu.main]]
+  identifier = "home"
+  name = "首页"
+  url = "/"
+  weight = 10
+
+[[menu.main]]
+  identifier = "posts"
+  name = "文章"
+  url = "/posts/"
+  weight = 20
+
+[[menu.main]]
+  identifier = "archives"
+  name = "归档"
+  url = "/archives/"
+  weight = 30
+
+[[menu.main]]
+  identifier = "tags"
+  name = "标签"
+  url = "/tags/"
+  weight = 40
+
+[[menu.main]]
+  identifier = "about"
+  name = "关于"
+  url = "/about/"
+  weight = 50
+
+[[menu.main]]
+  identifier = "search"
+  name = "搜索"
+  url = "/search/"
+  weight = 60
+
+
+# 输出格式：RSS + 搜索索引（主题的搜索功能需要 JSON 输出）
+[outputs]
+  home = ["HTML", "RSS", "JSON"]
+  section = ["HTML", "RSS"]
