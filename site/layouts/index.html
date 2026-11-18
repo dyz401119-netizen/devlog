@@ -36,6 +36,14 @@
       <p>{{ .Summary | plainify | htmlUnescape }}{{ if .Truncated }}...{{ end }}</p>
     </div>
     {{- end }}
+    {{- /* 标签：让访客一眼看出文章主题 */ -}}
+    {{- with .Params.tags }}
+    <div class="home-entry-tags">
+      {{- range first 3 . }}
+      <span class="home-tag">#{{ . }}</span>
+      {{- end }}
+    </div>
+    {{- end }}
     {{- if not (.Param "hideMeta") }}
     <footer class="entry-footer">
       {{- partial "post_meta.html" . -}}
