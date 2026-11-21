@@ -365,7 +365,7 @@ class Room {
    * setInterval 在 tick 耗时超过间隔时会产生任务堆积，
    * 导致实际帧率远低于预期（实测只有 10 FPS 而不是 30 FPS）。
    */
-  scheduleTick() {
+  scheduleTick(delay = TICK_MS) {
     if (!this.started) return;
     this.timer = setTimeout(() => {
       const t0 = process.hrtime.bigint();
@@ -376,10 +376,11 @@ class Room {
       }
       const elapsedMs = Number(process.hrtime.bigint() - t0) / 1e6;
       this.lastTickMs = elapsedMs;
-      // 下次延迟 = 目标间隔 - 本帧耗时（不低于 1ms）
-      const nextDelay = Math.max(1, TICK_MS - elapsedMs);
-      this.scheduleTick();
-    }, TICK_MS);
+      // 下次延迟 = 目标间隔 - 本帧耗时（不低于 1ms）。
+      // 必须真的把这个延迟传回 scheduleTick：原先固定等 TICK_MS，
+      // 再叠加本帧耗时，实测帧率只有 15 FPS。
+      this.scheduleTick(Math.max(1, TICK_MS - elapsedMs));
+    }, Math.max(1, delay));
   }
 
   stop() {
@@ -564,23 +565,42 @@ class Room {
   }
 
   broadcastState() {
-    // 为每个玩家构造视野内的数据（优化：只发附近的食物和蛇）
+    // 为每个玩家构造视野内的数据（只发附近的食物和蛇）
     for (const s of this.snakes.values()) {
       if (!s.alive || !s.ws || s.ws.readyState !== 1) continue;
 
-      // 【性能优化】视野裁剪：只发玩家屏幕能看到的区域
-      // 原来用 1400 半径，900 个食物里可能筛出 300+ 个，每帧 30 次很吃 CPU。
-      // 缩小到 900 半径（约等于屏幕可视范围），并给食物做距离分级。
       const viewRadius = 1200;
       const viewR2 = viewRadius * viewRadius;
 
-      const foods = [];
-      for (const f of this.foods.values()) {
-        const d2 = dist2(s.x, s.y, f.x, f.y);
-        if (d2 < viewR2) {
-          // 用更短的 key 减少 JSON 体积
-          foods.push({ i: f.id, x: Math.round(f.x), y: Math.round(f.y), c: f.color });
+      // 【带宽优化】食物是静止的，没必要每帧重发全部坐标。
+      // 只有"上次下发后玩家移动超过 200px"时才重发全量视野食物，
+      // 其余帧只发被吃掉消失的那些 id（rem）。
+      // 原来每帧 238 个食物 ≈ 13KB，30 FPS 下每人下行 ~390KB/s，
+      // 是画面卡顿的主要来源。
+      const movedX = s.x - (s._foodRefX ?? 1e9);
+      const movedY = s.y - (s._foodRefY ?? 1e9);
+      const needFull = !s._foodRefX || (movedX * movedX + movedY * movedY) > 200 * 200;
+
+      let foods = null;
+      const rem = [];
+
+      if (needFull) {
+        foods = [];
+        s._foodIds = s._foodIds || new Set();
+        const nowIds = new Set();
+        for (const f of this.foods.values()) {
+          if (dist2(s.x, s.y, f.x, f.y) < viewR2) {
+            foods.push({ i: f.id, x: Math.round(f.x), y: Math.round(f.y), c: f.color });
+            nowIds.add(f.id);
+          }
         }
+        // 上一批里消失的（被吃掉）告诉客户端删掉
+        for (const oldId of s._foodIds) {
+          if (!nowIds.has(oldId)) rem.push(oldId);
+        }
+        s._foodIds = nowIds;
+        s._foodRefX = s.x;
+        s._foodRefY = s.y;
       }
 
       // 只发视野内的蛇
@@ -606,6 +626,7 @@ class Room {
         },
         snakes,
         foods,
+        rem,
         leaderboard: this.leaderboard,
         world: { r: WORLD_RADIUS },
       };
