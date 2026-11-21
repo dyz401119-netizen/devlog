@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>贪吃蛇大作战 · 管理后台</title>
+<style>
+  :root {
+    --bg: #0b1019;
+    --panel: #161e2e;
+    --panel2: #1f2a3d;
+    --border: #2a3548;
+    --text: #e6ebf2;
+    --muted: #7d8ba3;
+    --accent: #00d2d3;
+    --gold: #ffd93d;
+    --ok: #2ecc71;
+    --warn: #f39c12;
+    --danger: #e74c3c;
+    --blue: #54a0ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px; line-height: 1.5;
+    padding: 16px; min-height: 100vh;
+  }
+
+  /* 登录 */
+  #login {
+    max-width: 380px; margin: 70px auto;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 26px;
+  }
+  #login h2 { font-size: 18px; margin-bottom: 6px; }
+  #login p { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  #login input {
+    width: 100%; padding: 11px 14px; margin-bottom: 12px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 9px; color: var(--text); font-size: 14px;
+    font-family: inherit; outline: none;
+  }
+  #login input:focus { border-color: var(--accent); }
+  #login button {
+    width: 100%; padding: 12px;
+    background: linear-gradient(135deg, #00d2d3, #0984e3);
+    color: #fff; border: none; border-radius: 9px;
+    font-weight: 700; font-size: 15px; cursor: pointer;
+    font-family: inherit;
+  }
+  #login .err { color: var(--danger); font-size: 13px; margin-top: 9px; min-height: 18px; }
+
+  /* 面板 */
+  #dash { display: none; }
+  h1 { font-size: 19px; margin-bottom: 3px; display: flex; align-items: center; gap: 10px; }
+  h1 .badge {
+    font-size: 11px; font-weight: 400;
+    padding: 2px 9px; border-radius: 10px;
+    background: var(--panel2); color: var(--muted);
+  }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px; margin-bottom: 22px;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 11px; padding: 14px 16px;
+  }
+  .card .lbl {
+    font-size: 12px; color: var(--muted); margin-bottom: 6px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .card .val {
+    font-size: 25px; font-weight: 800;
+    font-variant-numeric: tabular-nums; line-height: 1.2;
+  }
+  .card .val .u { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 2px; }
+  .card.ok .val { color: var(--ok); }
+  .card.blue .val { color: var(--blue); }
+  .card.gold .val { color: var(--gold); }
+  .card.warn .val { color: var(--warn); }
+
+  .bar { height: 5px; background: var(--panel2); border-radius: 3px; overflow: hidden; margin-top: 9px; }
+  .bar > i { display: block; height: 100%; background: var(--accent); transition: width .4s; border-radius: 3px; }
+
+  section { margin-bottom: 24px; }
+  section h3 { font-size: 15px; margin-bottom: 11px; display: flex; align-items: center; gap: 8px; }
+  section h3 .cnt { font-size: 12px; color: var(--muted); font-weight: 400; }
+
+  table {
+    width: 100%; border-collapse: collapse;
+    background: var(--panel); border-radius: 11px;
+    overflow: hidden; font-size: 13px;
+  }
+  th {
+    text-align: left; padding: 10px 12px;
+    background: var(--panel2); color: var(--muted);
+    font-weight: 500; font-size: 12px; white-space: nowrap;
+  }
+  td { padding: 9px 12px; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+
+  .tag {
+    display: inline-block; font-size: 11px;
+    padding: 1px 8px; border-radius: 10px;
+    background: var(--panel2); color: var(--muted);
+  }
+  .tag.alive { background: rgba(46,204,113,.15); color: var(--ok); }
+  .tag.dead { background: rgba(231,76,60,.15); color: var(--danger); }
+  .tag.boost { background: rgba(255,217,61,.15); color: var(--gold); }
+
+  .dot {
+    display: inline-block; width: 9px; height: 9px;
+    border-radius: 50%; margin-right: 6px; vertical-align: middle;
+  }
+
+  button.mini {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); border-radius: 5px;
+    padding: 2px 10px; font-size: 12px; cursor: pointer;
+    font-family: inherit;
+  }
+  button.mini:hover { border-color: var(--danger); color: var(--danger); }
+  button.mini:disabled { opacity: .4; cursor: not-allowed; }
+
+  .empty { text-align: center; color: var(--muted); padding: 28px; font-size: 13px; }
+
+  .statusbar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--panel); border-top: 1px solid var(--border);
+    padding: 7px 16px; font-size: 12px; color: var(--muted);
+    display: flex; justify-content: space-between;
+    font-variant-numeric: tabular-nums;
+  }
+  .statusbar .live::before {
+    content: '●'; color: var(--ok); margin-right: 6px;
+    animation: bl 1.6s infinite;
+  }
+  @keyframes bl { 50% { opacity: .3; } }
+
+  .rank1 { color: var(--gold); font-weight: 700; }
+
+  @media (max-width: 640px) {
+    body { padding: 10px; }
+    .grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .card { padding: 11px 12px; }
+    .card .val { font-size: 20px; }
+    th, td { padding: 8px; font-size: 12px; }
+    .hide-sm { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h2>🔐 管理后台</h2>
+  <p>输入管理令牌查看游戏运行数据</p>
+  <input id="token" type="password" placeholder="管理令牌" autocomplete="off">
+  <button id="login-btn">进入</button>
+  <div class="err" id="login-err"></div>
+</div>
+
+<div id="dash">
+  <h1>🐍 贪吃蛇大作战 · 后台 <span class="badge" id="uptime">-</span></h1>
+  <div class="sub">实时监控</div>
+
+  <div class="grid">
+    <div class="card ok">
+      <div class="lbl">在线玩家</div>
+      <div class="val" id="m-online">0<span class="u">人</span></div>
+    </div>
+    <div class="card blue">
+      <div class="lbl">活跃房间</div>
+      <div class="val" id="m-rooms">0<span class="u">个</span></div>
+    </div>
+    <div class="card gold">
+      <div class="lbl">累计击杀</div>
+      <div class="val" id="m-kills">0</div>
+    </div>
+    <div class="card">
+      <div class="lbl">累计死亡</div>
+      <div class="val" id="m-deaths">0</div>
+    </div>
+    <div class="card">
+      <div class="lbl">累计连接</div>
+      <div class="val" id="m-conns">0</div>
+    </div>
+    <div class="card warn">
+      <div class="lbl">峰值在线</div>
+      <div class="val" id="m-peak">0</div>
+    </div>
+    <div class="card">
+      <div class="lbl">进程内存</div>
+      <div class="val" id="m-mem">0<span class="u">MB</span></div>
+      <div class="bar"><i id="mem-bar" style="width:0%"></i></div>
+    </div>
+    <div class="card">
+      <div class="lbl">系统负载</div>
+      <div class="val" id="m-load">0</div>
+      <div class="bar"><i id="load-bar" style="width:0%;background:var(--blue)"></i></div>
+    </div>
+  </div>
+
+  <section>
+    <h3>房间列表 <span class="cnt" id="room-count"></span></h3>
+    <div id="rooms-wrap"><div class="empty">暂无活跃房间</div></div>
+  </section>
+
+  <section>
+    <h3>最近击杀 <span class="cnt">谁杀了谁</span></h3>
+    <div id="kill-wrap"><div class="empty">暂无记录</div></div>
+  </section>
+
+  <section>
+    <h3>最近死亡 <span class="cnt">死因分析</span></h3>
+    <div id="death-wrap"><div class="empty">暂无记录</div></div>
+  </section>
+</div>
+
+<div class="statusbar">
+  <span class="live">每 2 秒刷新</span>
+  <span id="last-update">-</span>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const API = '/snake/admin/api';
+  let token = sessionStorage.getItem('snake_tk') || '';
+  const $ = id => document.getElementById(id);
+
+  async function apiGet(path, tk) {
+    const r = await fetch(`${API}${path}?token=${encodeURIComponent(tk)}`, { cache: 'no-store' });
+    if (r.status === 401) return { ok: false, code: 401 };
+    if (!r.ok) return { ok: false, code: r.status };
+    return { ok: true, data: await r.json() };
+  }
+
+  $('login-btn').addEventListener('click', async () => {
+    const tk = $('token').value.trim();
+    if (!tk) { $('login-err').textContent = '请输入令牌'; return; }
+    $('login-err').textContent = '验证中…';
+    const res = await apiGet('/overview', tk);
+    if (!res.ok) {
+      $('login-err').textContent = res.code === 401 ? '令牌无效' : '连接失败（' + res.code + '）';
+      return;
+    }
+    token = tk;
+    sessionStorage.setItem('snake_tk', tk);
+    $('login').style.display = 'none';
+    $('dash').style.display = 'block';
+    document.body.style.paddingBottom = '50px';
+    render(res.data);
+    poll();
+  });
+  $('token').addEventListener('keydown', e => { if (e.key === 'Enter') $('login-btn').click(); });
+
+  let timer = null;
+  function poll() {
+    if (timer) clearInterval(timer);
+    timer = setInterval(refresh, 2000);
+  }
+
+  async function refresh() {
+    if ($('dash').style.display !== 'block') return;
+    try {
+      const [ov, rooms] = await Promise.all([
+        apiGet('/overview', token),
+        apiGet('/rooms', token),
+      ]);
+      if (ov.code === 401) { sessionStorage.removeItem('snake_tk'); location.reload(); return; }
+      if (ov.ok) render(ov.data, rooms.ok ? rooms.data.rooms : null);
+      $('last-update').textContent = '更新于 ' + new Date().toLocaleTimeString();
+    } catch (e) {
+      $('last-update').textContent = '⚠ ' + e.message;
+    }
+  }
+
+  function render(ov, roomList) {
+    $('m-online').innerHTML = ov.online + '<span class="u">人</span>';
+    $('m-rooms').innerHTML = ov.rooms + '<span class="u">个</span>';
+    $('m-kills').textContent = ov.killHistory ? ov.killHistory.length : 0;
+    $('m-deaths').textContent = ov.totalDeaths;
+    $('m-conns').textContent = ov.totalConnections;
+    $('m-peak').textContent = ov.peakOnline;
+    $('m-mem').innerHTML = ov.memory.rssMB + '<span class="u">MB</span>';
+    $('m-load').textContent = ov.system.loadavg[0].toFixed(2);
+
+    $('mem-bar').style.width = Math.min(100, (ov.memory.rssMB / ov.system.totalMemMB) * 100).toFixed(1) + '%';
+    $('load-bar').style.width = Math.min(100, (ov.system.loadavg[0] / ov.system.cpus) * 100).toFixed(0) + '%';
+
+    const s = ov.uptimeSec;
+    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+    $('uptime').textContent = d ? `${d}天${h}时` : h ? `${h}时${m}分` : `${m}分${s % 60}秒`;
+
+    if (roomList) renderRooms(roomList);
+    renderKills(ov.killHistory || []);
+    renderDeaths(ov.deathHistory || []);
+  }
+
+  function renderRooms(list) {
+    $('room-count').textContent = list.length ? `共 ${list.length} 个` : '';
+    const wrap = $('rooms-wrap');
+    if (!list.length) { wrap.innerHTML = '<div class="empty">暂无活跃房间</div>'; return; }
+
+    const rows = list.map(r => {
+      const snakes = r.snakes.slice(0, 8).map(s => `
+        <span class="tag ${s.alive ? 'alive' : 'dead'}" style="margin:1px 4px 1px 0" title="${esc(s.name)}">
+          <span class="dot" style="background:${s.color}"></span>
+          ${esc(s.name)} · 长${s.length}${s.alive ? '' : ' · 死'}
+        </span>
+      `).join('') || '<span class="tag">无</span>';
+
+      const lb = r.leaderboard && r.leaderboard.length
+        ? r.leaderboard.slice(0, 3).map(x => `<span class="tag ${x.rank === 1 ? 'boost' : ''}">${esc(x.name)} ${x.score}</span>`).join(' ')
+        : '<span class="tag">无</span>';
+
+      return `<tr>
+        <td><code>${esc(r.id)}</code></td>
+        <td>${r.playerCount}<span style="color:var(--muted)">/${r.aliveCount}</span></td>
+        <td>${r.foodCount}</td>
+        <td>${snakes}</td>
+        <td class="hide-sm">${lb}</td>
+        <td class="hide-sm">${fmt(r.createdAt)}</td>
+        <td><button class="mini" data-kick="${esc(r.id)}">关闭</button></td>
+      </tr>`;
+    }).join('');
+
+    wrap.innerHTML = `<table>
+      <thead><tr>
+        <th>房间</th><th>人数</th><th>食物</th><th>玩家</th>
+        <th class="hide-sm">排行榜</th><th class="hide-sm">创建</th><th>操作</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+    wrap.querySelectorAll('button[data-kick]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.kick;
+        if (!confirm(`关闭房间 ${id}？所有玩家会被踢出。`)) return;
+        try {
+          const r = await fetch(`${API}/kick/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}`, { method: 'POST' });
+          if (r.ok) { btn.textContent = '已关闭'; btn.disabled = true; setTimeout(refresh, 600); }
+          else alert('操作失败');
+        } catch (e) { alert('请求失败：' + e.message); }
+      });
+    });
+  }
+
+  function renderKills(list) {
+    const wrap = $('kill-wrap');
+    if (!list.length) { wrap.innerHTML = '<div class="empty">暂无击杀记录</div>'; return; }
+    wrap.innerHTML = `<table>
+      <thead><tr><th>击杀者</th><th>被击杀</th><th class="hide-sm">房间</th><th class="hide-sm">时间</th></tr></thead>
+      <tbody>${list.slice(0, 15).map(k => `<tr>
+        <td><strong style="color:var(--ok)">${esc(k.killer)}</strong></td>
+        <td style="color:var(--danger)">${esc(k.victim)}</td>
+        <td class="hide-sm"><code>${esc(k.room)}</code></td>
+        <td class="hide-sm">${fmt(k.time)}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }
+
+  function renderDeaths(list) {
+    const wrap = $('death-wrap');
+    if (!list.length) { wrap.innerHTML = '<div class="empty">暂无死亡记录</div>'; return; }
+    wrap.innerHTML = `<table>
+      <thead><tr><th>玩家</th><th>死因</th><th>长度</th><th>分数</th><th class="hide-sm">时间</th></tr></thead>
+      <tbody>${list.slice(0, 15).map(d => `<tr>
+        <td>${esc(d.name)}</td>
+        <td style="color:var(--muted)">${esc(d.reason)}</td>
+        <td>${d.length}</td>
+        <td style="color:var(--gold)">${d.score}</td>
+        <td class="hide-sm">${fmt(d.time)}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function fmt(ts) {
+    if (!ts) return '-';
+    const diff = Math.floor((Date.now() - ts) / 1000);
+    if (diff < 60) return diff + '秒前';
+    if (diff < 3600) return Math.floor(diff / 60) + '分前';
+    return new Date(ts).toLocaleTimeString();
+  }
+
+  // 自动登录
+  if (token) {
+    apiGet('/overview', token).then(res => {
+      if (res.ok) {
+        $('login').style.display = 'none';
+        $('dash').style.display = 'block';
+        document.body.style.paddingBottom = '50px';
+        render(res.data);
+        poll();
+      } else {
+        sessionStorage.removeItem('snake_tk');
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>
