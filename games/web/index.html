@@ -308,6 +308,12 @@
 
   const $ = id => document.getElementById(id);
 
+  // ---------------- 网络状态 ----------------
+  // 必须定义在 handle()/输入循环之前：下面的事件处理会先用到这两个变量，
+  // 若声明位置靠后会触发暂时性死区（TDZ）报错。
+  let netRtt = 0;        // 平滑后的往返延迟（ms）
+  let pendingPing = 0;   // 本次 ping 发出时刻
+
   // ---------------- 状态 ----------------
   const state = {
     ws: null,
@@ -391,6 +397,15 @@
 
   function handle(msg) {
     switch (msg.t) {
+      case 'pong':
+        if (pendingPing) {
+          const rtt = performance.now() - pendingPing;
+          pendingPing = 0;
+          // 指数平滑，避免单次抖动影响判断
+          netRtt = netRtt ? netRtt * 0.6 + rtt * 0.4 : rtt;
+        }
+        break;
+
       case 'joined':
         state.myId = msg.id;
         state.world = msg.world;
@@ -405,13 +420,20 @@
       case 'state':
         state.me = msg.me;
         state.snakes = msg.snakes;
-        state.foods = msg.foods;
+        // 食物采用增量同步：foods 为 null 表示本帧没有全量数据（沿用旧的），
+        // rem 是本帧被吃掉、需要移除的食物 id 列表。
+        if (msg.foods) state.foods = msg.foods;
+        if (msg.rem && msg.rem.length) {
+          const gone = new Set(msg.rem);
+          state.foods = state.foods.filter(f => !gone.has(f.i));
+        }
         state.leaderboard = msg.leaderboard;
         state.world = msg.world;
         state.alive = true;
-        // 镜头跟随
-        state.camera.x = msg.me.x;
-        state.camera.y = msg.me.y;
+        // 镜头改由 draw() 平滑跟随 network target，不直接跳到位。
+        // 原来这里直接 camera.x = msg.me.x，一旦网络抖动/丢包，
+        // 画面就会猛地跳一下，观感上就是"卡"。
+        state.net_target = { x: msg.me.x, y: msg.me.y };
         updateHUD(msg.me, msg.leaderboard);
         break;
 
@@ -565,16 +587,46 @@
     }
   }
 
-  // 每帧发送目标角度
+  // 每帧发送目标角度。
+  // 跨境链路（大陆↔香港）实测丢包 6%、抖动 40~82ms，
+  // 发送过于频繁会让每个小包都承担重传风险，因此：
+  //   1) 角度变化超过阈值才发（微小抖动没必要发）
+  //   2) 发送间隔按实测 RTT 自适应：延迟越高发得越稀疏
+  //      delay<=80ms -> 33ms(30Hz，跟满服务器 tick)
+  //      delay>80ms  -> 最多放到 66ms(15Hz)，避免小包洪泛加剧丢包
+  // 网络好时几乎不损失精度，网络差时明显更稳。
   let lastSentAngle = 0;
+  let lastSentAt = 0;
+
+  // 发送间隔按实测 RTT 自适应（netRtt 定义在文件上方）：
+  //   <=80ms  -> 33ms(30Hz) 跟满服务器 tick
+  //   <=150ms -> 50ms(20Hz)
+  //   >150ms  -> 66ms(15Hz) 避免小包洪泛加剧丢包
+  function sendInterval() {
+    if (netRtt <= 0) return 33;
+    if (netRtt <= 80) return 33;
+    if (netRtt <= 150) return 50;
+    return 66;
+  }
+
+  // 轻量 RTT 探测：每 3 秒 ping 一次，用客户端本地时间算往返。
+  setInterval(() => {
+    if (!state.alive || !state.ws || state.ws.readyState !== 1) return;
+    pendingPing = performance.now();
+    send({ t: 'ping' });
+  }, 3000);
+
   setInterval(() => {
     if (!state.alive || !state.mouse.active) return;
     const dx = state.mouse.x - W / 2;
     const dy = state.mouse.y - H / 2;
     if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
     const angle = Math.atan2(dy, dx);
-    if (Math.abs(angle - lastSentAngle) > 0.02) {
+    const now = performance.now();
+    const changed = Math.abs(angle - lastSentAngle) > 0.02;
+    if (changed && now - lastSentAt >= sendInterval()) {
       lastSentAngle = angle;
+      lastSentAt = now;
       state.targetAngle = angle;
       send({ t: 'input', type: 'angle', value: angle });
     }
@@ -598,6 +650,28 @@
     ctx.fillRect(0, 0, W, H);
 
     if (!state.me) return;
+
+    // 镜头平滑跟随：向服务器的最新坐标按指数衰减逼近。
+    // 丢包导致某帧缺失时画面继续匀速前进，不会卡住再猛跳；
+    // 收到新坐标也只是被"拉"过去，看不出台阶感。
+    // 用真实时间步长计算系数，保证 60Hz 和 144Hz 显示器观感一致
+    // （固定 0.22/帧 在 144Hz 上会追得过快，卡顿时又追得太慢）。
+    const net = state.net_target || { x: state.me.x, y: state.me.y };
+    const camera = state.camera;
+    const dt = state.lastDrawAt ? Math.min(0.1, (now - state.lastDrawAt) / 1000) : 0.016;
+    state.lastDrawAt = now;
+    if (!camera.init) {
+      camera.x = net.x; camera.y = net.y; camera.init = true;
+    } else {
+      // 时间常数 0.06s：约 90% 的差距在 140ms 内补完
+      const k = 1 - Math.exp(-dt / 0.06);
+      camera.x += (net.x - camera.x) * k;
+      camera.y += (net.y - camera.y) * k;
+      // 距离过大（比如刚重生/传送）直接对齐，避免长时间"追赶"
+      if (Math.abs(net.x - camera.x) > 400 || Math.abs(net.y - camera.y) > 400) {
+        camera.x = net.x; camera.y = net.y;
+      }
+    }
 
     // 镜头缩放：蛇越长，视野越大
     const baseScale = Math.min(W, H) / 900;
@@ -822,6 +896,28 @@
 
   // 启动渲染
   requestAnimationFrame(draw);
+
+  // 只读调试出口：便于外部（自动化测试/控制台）观察网络与平滑状态。
+  // 不暴露任何可修改内部状态的方法。
+  window.__snakeDebug = () => ({
+    fps: state.fpsSamples.length
+      ? Math.round(state.fpsSamples.reduce((a, b) => a + b, 0) / state.fpsSamples.length)
+      : 0,
+    netRtt: Math.round(netRtt),
+    sendHz: Math.round(1000 / sendInterval()),
+    camera: { x: Math.round(state.camera.x), y: Math.round(state.camera.y) },
+    netTarget: state.net_target
+      ? { x: Math.round(state.net_target.x), y: Math.round(state.net_target.y) }
+      : null,
+    // 镜头与服务器位置的偏差：平滑生效时这个值应该很小且平稳
+    lagPx: state.net_target
+      ? Math.round(Math.hypot(state.net_target.x - state.camera.x, state.net_target.y - state.camera.y))
+      : null,
+    foods: state.foods.length,
+    snakes: state.snakes.length,
+    length: state.me ? state.me.length : null,
+    connected: state.connected,
+  });
 })();
 </script>
 </body>
