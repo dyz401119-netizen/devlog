@@ -67,3 +67,31 @@ services:
       retries: 3
       start_period: 10s
     logging: *default-logging
+
+  # ---------- 联机贪吃蛇游戏服务 ----------
+  #
+  # 架构：
+  #   浏览器 ──WS──> Nginx(/snake/ws) ──> 本容器(8080)
+  #   管理后台 ─HTTP─> Nginx(/snake/admin/api) ──> 本容器
+  #
+  # 说明：
+  #   - 状态全内存，重启会丢失对局（游戏数据无持久化需求）
+  #   - 不映射端口到宿主机，只能通过 Nginx 访问
+  #   - ADMIN_TOKEN 从 .env 读取，用于后台鉴权
+  game:
+    build:
+      context: ./games/server
+      dockerfile: Dockerfile
+    container_name: blog-game
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      PORT: 8080
+      ADMIN_TOKEN: ${SNAKE_ADMIN_TOKEN:?请在 .env 设置 SNAKE_ADMIN_TOKEN}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8080/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging: *default-logging
