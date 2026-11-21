@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>贪吃蛇大作战</title>
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: rgba(22, 30, 46, .92);
+    --border: #2a3548;
+    --text: #e6ebf2;
+    --muted: #7d8ba3;
+    --accent: #00d2d3;
+    --gold: #ffd93d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  /* ============ 开始界面 ============ */
+  #start {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 18px; padding: 24px;
+    background: radial-gradient(circle at 50% 40%, #1a2540 0%, #0a0f1a 100%);
+  }
+  #start h1 {
+    font-size: clamp(1.8rem, 6vw, 2.8rem);
+    font-weight: 900; letter-spacing: 2px;
+    background: linear-gradient(135deg, #00d2d3, #54a0ff, #5f27cd);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  #start .sub {
+    color: var(--muted); font-size: 14px; text-align: center;
+    line-height: 1.8; max-width: 340px;
+  }
+  #start .sub b { color: var(--accent); }
+  #start .field { width: 100%; max-width: 320px; }
+  #start label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  #start input {
+    width: 100%; padding: 13px 16px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text);
+    font-size: 15px; font-family: inherit; outline: none;
+  }
+  #start input:focus { border-color: var(--accent); }
+  #start button {
+    width: 100%; max-width: 320px; padding: 14px;
+    background: linear-gradient(135deg, #00d2d3, #0984e3);
+    color: #fff; border: none; border-radius: 10px;
+    font-size: 17px; font-weight: 700; cursor: pointer;
+    font-family: inherit;
+    box-shadow: 0 6px 20px rgba(0, 210, 211, .3);
+  }
+  #start button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+  #start .tips {
+    font-size: 12px; color: var(--muted); text-align: center;
+    line-height: 1.9; max-width: 320px;
+    background: rgba(255,255,255,.03);
+    border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 16px;
+  }
+  #start .tips kbd {
+    background: #2a3548; border-radius: 4px;
+    padding: 1px 6px; font-size: 11px; color: var(--text);
+  }
+
+  /* ============ 游戏界面 ============ */
+  #game { display: none; position: fixed; inset: 0; }
+  #canvas { display: block; width: 100%; height: 100%; }
+
+  /* 顶部信息条 */
+  #hud {
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: 10px 14px;
+    display: flex; align-items: flex-start; justify-content: space-between;
+    pointer-events: none;
+  }
+  #hud .stats {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 13px; line-height: 1.7;
+  }
+  #hud .stats .row { display: flex; gap: 14px; }
+  #hud .stats .v { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+  #hud .stats .v.gold { color: var(--gold); }
+
+  /* 排行榜 */
+  #leaderboard {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 9px 13px;
+    font-size: 12px; min-width: 155px;
+    max-height: 240px; overflow: hidden;
+  }
+  #leaderboard .title {
+    color: var(--muted); font-size: 11px;
+    margin-bottom: 6px; letter-spacing: 1px;
+  }
+  #leaderboard .item {
+    display: flex; align-items: center; gap: 7px;
+    padding: 2px 0;
+  }
+  #leaderboard .item.me { color: var(--gold); font-weight: 700; }
+  #leaderboard .rak { color: var(--muted); width: 16px; font-variant-numeric: tabular-nums; }
+  #leaderboard .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  #leaderboard .nm {
+    flex: 1; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  #leaderboard .sc { font-variant-numeric: tabular-nums; }
+
+  /* 小地图 */
+  #minimap {
+    position: absolute; right: 14px; bottom: 14px;
+    width: 130px; height: 130px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  /* 加速按钮（手机） */
+  #boost-btn {
+    position: absolute; right: 24px; bottom: 160px;
+    width: 82px; height: 82px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #54a0ff, #0652dd);
+    border: 3px solid rgba(255,255,255,.25);
+    color: #fff; font-weight: 800; font-size: 15px;
+    display: none; align-items: center; justify-content: center;
+    cursor: pointer; touch-action: none;
+    box-shadow: 0 6px 20px rgba(9, 132, 227, .5);
+  }
+  #boost-btn:active, #boost-btn.on {
+    background: radial-gradient(circle at 35% 30%, #ffd93d, #f39c12);
+    transform: scale(.94);
+  }
+
+  /* 暂停/菜单按钮 */
+  #menu-btn {
+    position: absolute; top: 10px; right: 14px;
+    background: var(--panel); border: 1px solid var(--border);
+    color: var(--muted); border-radius: 8px;
+    padding: 6px 12px; font-size: 13px; cursor: pointer;
+    font-family: inherit; pointer-events: auto;
+    display: none;
+  }
+
+  /* 死亡覆盖层 */
+  #dead {
+    position: absolute; inset: 0; z-index: 30;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(10, 15, 26, .88);
+    backdrop-filter: blur(3px);
+  }
+  #dead.show { display: flex; }
+  #dead .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 32px;
+    text-align: center;
+    max-width: 320px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  #dead .title { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
+  #dead .reason { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
+  #dead .result {
+    display: flex; gap: 22px; justify-content: center;
+    margin-bottom: 22px;
+  }
+  #dead .result .k { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+  #dead .result .v { font-size: 22px; font-weight: 800; color: var(--gold); }
+  #dead button {
+    width: 100%; padding: 13px;
+    border: none; border-radius: 10px;
+    font-size: 16px; font-weight: 700;
+    cursor: pointer; font-family: inherit;
+    background: linear-gradient(135deg, #00d2d3, #0984e3);
+    color: #fff; margin-bottom: 8px;
+  }
+  #dead button.secondary {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); font-weight: 500; font-size: 14px;
+    padding: 10px;
+  }
+
+  /* 连接状态 */
+  #conn {
+    position: absolute; bottom: 14px; left: 14px;
+    font-size: 12px; color: var(--muted);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px; padding: 5px 11px;
+    pointer-events: none;
+  }
+  #conn .dot {
+    display: inline-block; width: 7px; height: 7px;
+    border-radius: 50%; background: #e74c3c; margin-right: 6px;
+  }
+  #conn.on .dot { background: #2ecc71; }
+
+  @media (max-width: 720px) {
+    #boost-btn { display: flex; }
+    #hud { padding: 8px 10px; }
+    #hud .stats { font-size: 12px; padding: 6px 10px; }
+    #leaderboard { font-size: 11px; min-width: 120px; padding: 7px 10px; }
+    #minimap { width: 95px; height: 95px; right: 10px; bottom: 10px; }
+    #boost-btn { right: 16px; bottom: 120px; width: 72px; height: 72px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ 开始 ============ -->
+<div id="start">
+  <h1>贪吃蛇大作战</h1>
+  <div class="sub">吞食光点变长 · 让对手撞上你的身体 · 成为最长的蛇</div>
+
+  <div class="field">
+    <label>你的昵称</label>
+    <input id="name" type="text" maxlength="14" placeholder="起个名字" autocomplete="off">
+  </div>
+  <div class="field">
+    <label>房间号（相同才能一起玩）</label>
+    <input id="room" type="text" maxlength="20" placeholder="留空自动生成" autocomplete="off">
+  </div>
+
+  <button id="play-btn">开始游戏</button>
+
+  <div class="tips">
+    <b>操作方式</b><br>
+    电脑：鼠标控制方向 · 按住 <kbd>空格</kbd>/<kbd>左键</kbd> 加速<br>
+    手机：屏幕拖动 · 按住右下角按钮加速<br>
+    <br>
+    <b>记住</b>：只能用蛇头撞别人，<b>撞自己不会死</b>
+  </div>
+</div>
+
+<!-- ============ 游戏 ============ -->
+<div id="game">
+  <canvas id="canvas"></canvas>
+
+  <div id="hud">
+    <div class="stats">
+      <div class="row">
+        <span>长度 <span class="v" id="s-len">0</span></span>
+        <span>击杀 <span class="v gold" id="s-kill">0</span></span>
+      </div>
+      <div class="row">
+        <span>分数 <span class="v" id="s-score">0</span></span>
+      </div>
+    </div>
+    <div id="leaderboard">
+      <div class="title">排行榜</div>
+      <div id="lb-list"></div>
+    </div>
+  </div>
+
+  <button id="menu-btn">退出</button>
+  <canvas id="minimap" width="260" height="260"></canvas>
+  <div id="boost-btn">加速</div>
+
+  <div id="conn"><span class="dot"></span><span id="conn-text">连接中…</span></div>
+
+  <div id="dead">
+    <div class="card">
+      <div class="title" id="dead-title">你死了</div>
+      <div class="reason" id="dead-reason"></div>
+      <div class="result">
+        <div>
+          <div class="k">分数</div>
+          <div class="v" id="dead-score">0</div>
+        </div>
+        <div>
+          <div class="k">击杀</div>
+          <div class="v" id="dead-kills">0</div>
+        </div>
+      </div>
+      <button id="respawn-btn">再来一局</button>
+      <button id="exit-btn" class="secondary">返回首页</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------------- 配置 ----------------
+  const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://')
+    + location.host + '/snake/ws';
+
+  const $ = id => document.getElementById(id);
+
+  // ---------------- 状态 ----------------
+  const state = {
+    ws: null,
+    myId: null,
+    me: null,
+    snakes: [],
+    foods: [],
+    leaderboard: [],
+    world: { r: 2400 },
+    camera: { x: 0, y: 0, scale: 1 },
+    targetAngle: 0,
+    boosting: false,
+    mouse: { x: 0, y: 0, active: false },
+    connected: false,
+    alive: false,
+    lastFrame: 0,
+    fpsSamples: [],
+  };
+
+  // ---------------- Canvas ----------------
+  const canvas = $('canvas');
+  const ctx = canvas.getContext('2d');
+  const minimap = $('minimap');
+  const mctx = minimap.getContext('2d');
+
+  let W = 0, H = 0, DPR = 1;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------------- 网格背景（缓存） ----------------
+  let gridPattern = null;
+  function buildGrid() {
+    const size = 64;
+    const c = document.createElement('canvas');
+    c.width = size; c.height = size;
+    const g = c.getContext('2d');
+    g.strokeStyle = 'rgba(80, 130, 200, .06)';
+    g.lineWidth = 1;
+    g.strokeRect(.5, .5, size - 1, size - 1);
+    gridPattern = ctx.createPattern(c, 'repeat');
+  }
+  buildGrid();
+
+  // ---------------- 连接 ----------------
+  function connect(name, room) {
+    state.ws = new WebSocket(WS_URL);
+
+    state.ws.onopen = () => {
+      state.connected = true;
+      setConn(true);
+      state.ws.send(JSON.stringify({ t: 'join', name, room }));
+    };
+
+    state.ws.onmessage = ev => {
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch (e) { return; }
+      handle(msg);
+    };
+
+    state.ws.onclose = () => {
+      state.connected = false;
+      setConn(false);
+      if (state.alive) {
+        showDead('连接断开', '与服务器的连接已断开', 0, 0);
+      }
+    };
+
+    state.ws.onerror = () => setConn(false);
+  }
+
+  function handle(msg) {
+    switch (msg.t) {
+      case 'joined':
+        state.myId = msg.id;
+        state.world = msg.world;
+        state.alive = true;
+        $('start').style.display = 'none';
+        $('game').style.display = 'block';
+        $('menu-btn').style.display = 'block';
+        hideDead();
+        resize();
+        break;
+
+      case 'state':
+        state.me = msg.me;
+        state.snakes = msg.snakes;
+        state.foods = msg.foods;
+        state.leaderboard = msg.leaderboard;
+        state.world = msg.world;
+        state.alive = true;
+        // 镜头跟随
+        state.camera.x = msg.me.x;
+        state.camera.y = msg.me.y;
+        updateHUD(msg.me, msg.leaderboard);
+        break;
+
+      case 'dead':
+        state.alive = false;
+        showDead(
+          '你死了',
+          msg.reason + (msg.killer ? `（${msg.killer}）` : ''),
+          msg.score,
+          state.me ? state.me.kills : 0
+        );
+        break;
+
+      case 'kicked':
+        state.alive = false;
+        showDead('已离开', msg.reason || '', 0, 0);
+        break;
+
+      case 'error':
+        $('play-btn').textContent = msg.message;
+        $('play-btn').disabled = true;
+        setTimeout(() => {
+          $('play-btn').textContent = '开始游戏';
+          $('play-btn').disabled = false;
+        }, 2500);
+        break;
+
+      case 'pong':
+        break;
+    }
+  }
+
+  function setConn(ok) {
+    const el = $('conn');
+    if (ok) {
+      el.classList.add('on');
+      $('conn-text').textContent = '已连接';
+      setTimeout(() => { if (state.connected) el.style.opacity = '.35'; }, 2500);
+    } else {
+      el.classList.remove('on');
+      el.style.opacity = '1';
+      $('conn-text').textContent = '已断开';
+    }
+  }
+
+  // ---------------- HUD ----------------
+  function updateHUD(me, lb) {
+    $('s-len').textContent = me.length;
+    $('s-kill').textContent = me.kills;
+    $('s-score').textContent = me.score;
+
+    if (lb && lb.length) {
+      $('lb-list').innerHTML = lb.slice(0, 7).map(item => `
+        <div class="item ${item.rank === 1 ? '' : ''}">
+          <span class="rak">${item.rank}</span>
+          <span class="dot" style="background:${item.color}"></span>
+          <span class="nm">${esc(item.name)}</span>
+          <span class="sc">${item.score}</span>
+        </div>
+      `).join('');
+    } else {
+      $('lb-list').innerHTML = '<div class="item"><span class="nm" style="color:var(--muted)">暂无</span></div>';
+    }
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // ---------------- 死亡界面 ----------------
+  function showDead(title, reason, score, kills) {
+    $('dead-title').textContent = title;
+    $('dead-reason').textContent = reason;
+    $('dead-score').textContent = score;
+    $('dead-kills').textContent = kills;
+    $('dead').classList.add('show');
+  }
+  function hideDead() {
+    $('dead').classList.remove('show');
+  }
+
+  // ---------------- 输入 ----------------
+  // 鼠标控制方向
+  canvas.addEventListener('mousemove', e => {
+    if (!state.alive) return;
+    state.mouse.x = e.clientX;
+    state.mouse.y = e.clientY;
+    state.mouse.active = true;
+  });
+
+  // 鼠标按下 = 加速
+  canvas.addEventListener('mousedown', e => {
+    if (e.button === 0) setBoost(true);
+  });
+  window.addEventListener('mouseup', e => {
+    if (e.button === 0) setBoost(false);
+  });
+
+  // 空格加速
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); setBoost(true); }
+  });
+  window.addEventListener('keyup', e => {
+    if (e.code === 'Space') { e.preventDefault(); setBoost(false); }
+  });
+
+  // 触摸控制
+  let touchStart = null;
+  canvas.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    touchStart = { x: t.clientX, y: t.clientY };
+    state.mouse.x = t.clientX;
+    state.mouse.y = t.clientY;
+    state.mouse.active = true;
+  }, { passive: true });
+
+  canvas.addEventListener('touchmove', e => {
+    if (e.touches.length !== 1) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    state.mouse.x = t.clientX;
+    state.mouse.y = t.clientY;
+    state.mouse.active = true;
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', () => {
+    setBoost(false);
+  }, { passive: true });
+
+  // 加速按钮
+  const boostBtn = $('boost-btn');
+  boostBtn.addEventListener('touchstart', e => { e.preventDefault(); setBoost(true); }, { passive: false });
+  boostBtn.addEventListener('touchend', e => { e.preventDefault(); setBoost(false); }, { passive: false });
+  boostBtn.addEventListener('mousedown', () => setBoost(true));
+  boostBtn.addEventListener('mouseup', () => setBoost(false));
+  boostBtn.addEventListener('mouseleave', () => setBoost(false));
+
+  function setBoost(on) {
+    if (!state.alive) return;
+    if (state.boosting === on) return;
+    state.boosting = on;
+    boostBtn.classList.toggle('on', on);
+    send({ t: 'input', type: 'boost', value: on });
+  }
+
+  function send(obj) {
+    if (state.ws && state.ws.readyState === 1) {
+      try { state.ws.send(JSON.stringify(obj)); } catch (e) {}
+    }
+  }
+
+  // 每帧发送目标角度
+  let lastSentAngle = 0;
+  setInterval(() => {
+    if (!state.alive || !state.mouse.active) return;
+    const dx = state.mouse.x - W / 2;
+    const dy = state.mouse.y - H / 2;
+    if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+    const angle = Math.atan2(dy, dx);
+    if (Math.abs(angle - lastSentAngle) > 0.02) {
+      lastSentAngle = angle;
+      state.targetAngle = angle;
+      send({ t: 'input', type: 'angle', value: angle });
+    }
+  }, 16);
+
+  // ---------------- 渲染 ----------------
+  function draw() {
+    const now = performance.now();
+    if (state.lastFrame) {
+      state.fpsSamples.push(1000 / (now - state.lastFrame));
+      if (state.fpsSamples.length > 30) state.fpsSamples.shift();
+    }
+    state.lastFrame = now;
+
+    requestAnimationFrame(draw);
+
+    if ($('game').style.display !== 'block') return;
+
+    // 清屏
+    ctx.fillStyle = '#0b1019';
+    ctx.fillRect(0, 0, W, H);
+
+    if (!state.me) return;
+
+    // 镜头缩放：蛇越长，视野越大
+    const baseScale = Math.min(W, H) / 900;
+    const lenFactor = Math.min(1.6, 1 + (state.me.length - 10) / 300);
+    const scale = baseScale / lenFactor;
+    state.camera.scale = scale;
+
+    const cam = state.camera;
+    ctx.save();
+    ctx.translate(W / 2, H / 2);
+    ctx.scale(scale, scale);
+    ctx.translate(-cam.x, -cam.y);
+
+    // 1. 网格背景（跟随镜头）
+    if (gridPattern) {
+      ctx.save();
+      ctx.fillStyle = gridPattern;
+      ctx.fillRect(cam.x - W / scale / 2, cam.y - H / scale / 2, W / scale, H / scale);
+      ctx.restore();
+    }
+
+    // 2. 世界边界
+    ctx.beginPath();
+    ctx.arc(0, 0, state.world.r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0, 210, 211, .5)';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    // 边界外区域变暗
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(cam.x - W / scale, cam.y - H / scale, W / scale * 2, H / scale * 2);
+    ctx.arc(0, 0, state.world.r, 0, Math.PI * 2, true);
+    ctx.fillStyle = 'rgba(5, 8, 14, .75)';
+    ctx.fill('evenodd');
+    ctx.restore();
+
+    // 3. 食物（服务端用短字段名 c 代替 color 以减小带宽）
+    const t = now / 400;
+    for (const f of state.foods) {
+      const pulse = 1 + Math.sin(t + f.x * 0.01) * 0.15;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, 5 * pulse, 0, Math.PI * 2);
+      ctx.fillStyle = f.c || f.color || '#fff';
+      ctx.shadowColor = f.c || f.color || '#fff';
+      ctx.shadowBlur = 12;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    // 4. 蛇（先画别人，再画自己，保证自己在最上层）
+    const others = state.snakes.filter(s => s.id !== state.myId);
+    const mine = state.snakes.find(s => s.id === state.myId);
+
+    for (const s of others) drawSnake(s, false);
+    if (mine) drawSnake(mine, true);
+
+    ctx.restore();
+
+    // 5. 小地图
+    drawMinimap();
+  }
+
+  function drawSnake(s, isMe) {
+    const body = s.body;
+    if (!body || body.length < 2) return;
+
+    const radius = isMe ? 10 : 9;
+
+    // 光晕（加速时）
+    if (s.boosting) {
+      ctx.save();
+      ctx.shadowColor = s.color;
+      ctx.shadowBlur = 22;
+      ctx.beginPath();
+      ctx.arc(body[0][0], body[0][1], radius * 2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,.08)';
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 蛇身：从尾到头画圆
+    for (let i = body.length - 1; i >= 0; i--) {
+      const [x, y] = body[i];
+      const ratio = i / body.length;
+      // 越靠近尾巴越细
+      const r = radius * (0.72 + 0.28 * (1 - ratio));
+
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = s.color;
+      ctx.globalAlpha = 0.92;
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // 蛇身描边（让它更立体）
+    ctx.beginPath();
+    for (let i = body.length - 1; i >= 1; i--) {
+      const [x, y] = body[i];
+      const ratio = i / body.length;
+      const r = radius * (0.72 + 0.28 * (1 - ratio));
+      ctx.moveTo(x + r, y);
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,.22)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    // 蛇头
+    const [hx, hy] = body[0];
+    ctx.beginPath();
+    ctx.arc(hx, hy, radius * 1.12, 0, Math.PI * 2);
+    ctx.fillStyle = s.color;
+    ctx.fill();
+
+    // 高光
+    ctx.beginPath();
+    ctx.arc(hx - radius * 0.3, hy - radius * 0.35, radius * 0.38, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.fill();
+
+    // 眼睛（朝运动方向）
+    const eyeDist = radius * 0.5;
+    const eyeR = radius * 0.32;
+    const ang = isMe && state.me ? state.me.angle : (Math.atan2(hy - body[1][1], hx - body[1][0]));
+    const perp = ang + Math.PI / 2;
+
+    for (const sign of [-1, 1]) {
+      const ex = hx + Math.cos(ang) * eyeDist * 0.6 + Math.cos(perp) * eyeDist * 0.55 * sign;
+      const ey = hy + Math.sin(ang) * eyeDist * 0.6 + Math.sin(perp) * eyeDist * 0.55 * sign;
+      ctx.beginPath();
+      ctx.arc(ex, ey, eyeR, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(ex + Math.cos(ang) * eyeR * 0.35, ey + Math.sin(ang) * eyeR * 0.35, eyeR * 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#111';
+      ctx.fill();
+    }
+
+    // 自己的名字
+    if (!isMe) {
+      ctx.font = 'bold 12px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255,255,255,.75)';
+      ctx.fillText(esc(s.name), hx, hy - radius * 2.2);
+    }
+  }
+
+  function drawMinimap() {
+    const mw = minimap.width;
+    const mh = minimap.height;
+    const cx = mw / 2, cy = mh / 2;
+    const r = mw / 2 - 6;
+
+    mctx.clearRect(0, 0, mw, mh);
+
+    // 圆形边界
+    mctx.beginPath();
+    mctx.arc(cx, cy, r, 0, Math.PI * 2);
+    mctx.fillStyle = 'rgba(20, 30, 48, .9)';
+    mctx.fill();
+    mctx.strokeStyle = 'rgba(0, 210, 211, .5)';
+    mctx.lineWidth = 2;
+    mctx.stroke();
+
+    const scale = r / state.world.r;
+
+    // 其他玩家
+    for (const s of state.snakes) {
+      if (!s.alive || !s.body.length) continue;
+      const [x, y] = s.body[0];
+      const mx = cx + x * scale;
+      const my = cy + y * scale;
+      mctx.beginPath();
+      mctx.arc(mx, my, s.id === state.myId ? 5 : 3.5, 0, Math.PI * 2);
+      mctx.fillStyle = s.color;
+      mctx.fill();
+      if (s.id === state.myId) {
+        mctx.strokeStyle = '#fff';
+        mctx.lineWidth = 1.5;
+        mctx.stroke();
+      }
+    }
+  }
+
+  // ---------------- 事件绑定 ----------------
+  $('play-btn').addEventListener('click', () => {
+    const name = $('name').value.trim() || '玩家' + Math.floor(Math.random() * 1000);
+    let room = $('room').value.trim();
+    if (!room) {
+      room = Math.random().toString(36).slice(2, 8);
+      $('room').value = room;
+    }
+    $('play-btn').disabled = true;
+    connect(name, room);
+  });
+
+  $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('room').focus(); });
+  $('room').addEventListener('keydown', e => { if (e.key === 'Enter') $('play-btn').click(); });
+
+  $('respawn-btn').addEventListener('click', () => {
+    hideDead();
+    send({ t: 'respawn' });
+  });
+
+  $('exit-btn').addEventListener('click', () => location.reload());
+  $('menu-btn').addEventListener('click', () => {
+    if (confirm('确定退出游戏？')) location.reload();
+  });
+
+  // URL 带 room 自动填
+  const params = new URLSearchParams(location.search);
+  if (params.get('room')) $('room').value = params.get('room');
+  if (params.get('name')) $('name').value = params.get('name');
+
+  // 心跳
+  setInterval(() => {
+    if (state.ws && state.ws.readyState === 1) send({ t: 'ping' });
+  }, 20000);
+
+  // 启动渲染
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
